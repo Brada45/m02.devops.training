@@ -1,5 +1,5 @@
 import unittest
-from factorial import fibonacci
+from fibonacci import fibonacci
 
 
 class TestFibonacci(unittest.TestCase):
@@ -17,6 +17,10 @@ class TestFibonacci(unittest.TestCase):
 
     def test_fibonacci_of_15(self):
         self.assertEqual(fibonacci(15), 610)
+
+    def test_fibonacci_negative(self):
+        with self.assertRaises(ValueError):
+            fibonacci(-1)
 
 
 if __name__ == "__main__":

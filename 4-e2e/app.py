@@ -1,37 +1,50 @@
-from flask import Flask, jsonify, request
+import unittest
+import requests
 
-app = Flask(__name__)
-
-
-@app.route("/")
-def home():
-    raise NotImplementedError("Implement home endpoint using TDD")
+BASE_URL = "http://127.0.0.1:5000"
 
 
-@app.route("/health")
-def health():
-    raise NotImplementedError("Implement health endpoint using TDD")
+class TestSecurity(unittest.TestCase):
 
+    def test_missing_field_a(self):
+        response = requests.post(f"{BASE_URL}/add", json={"b": 5})
+        self.assertEqual(response.status_code, 400)
 
-@app.route("/add", methods=["POST"])
-def add():
-    raise NotImplementedError("Implement add endpoint using TDD")
+    def test_missing_field_b(self):
+        response = requests.post(f"{BASE_URL}/add", json={"a": 5})
+        self.assertEqual(response.status_code, 400)
 
+    def test_invalid_data_type(self):
+        response = requests.post(f"{BASE_URL}/add", json={"a": "abc", "b": 5})
+        self.assertEqual(response.status_code, 400)
 
-@app.route("/subtract", methods=["POST"])
-def subtract():
-    raise NotImplementedError("Implement subtract endpoint using TDD")
+    def test_empty_string_value(self):
+        response = requests.post(f"{BASE_URL}/add", json={"a": "", "b": 5})
+        self.assertEqual(response.status_code, 400)
 
+    def test_very_large_number(self):
+        large_number = 10**100
+        response = requests.post(
+            f"{BASE_URL}/add",
+            json={"a": large_number, "b": large_number}
+        )
+        self.assertNotEqual(response.status_code, 500)
 
-@app.route("/multiply", methods=["POST"])
-def multiply():
-    raise NotImplementedError("Implement multiply endpoint using TDD")
+    def test_malformed_json(self):
+        response = requests.post(
+            f"{BASE_URL}/add",
+            data='{"a": 5, "b":}',
+            headers={"Content-Type": "application/json"}
+        )
+        self.assertEqual(response.status_code, 400)
 
-
-@app.route("/divide", methods=["POST"])
-def divide():
-    raise NotImplementedError("Implement divide endpoint using TDD")
+    def test_division_by_zero_returns_safe_error(self):
+        response = requests.post(
+            f"{BASE_URL}/divide",
+            json={"a": 10, "b": 0}
+        )
+        self.assertEqual(response.status_code, 400)
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    unittest.main()
