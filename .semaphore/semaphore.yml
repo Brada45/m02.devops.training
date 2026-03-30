@@ -25,7 +25,7 @@ blocks:
       jobs:
         - name: Install Python Packages
           commands:
-            - 'echo "Installing dependencies...." '
+            - echo "Installing dependencies...."
             - pip install pytest requests flask coverage locust flask-limiter
             - cache store
   - name: Unit Tests
@@ -132,3 +132,20 @@ blocks:
             - python -m pytest test_security.py -v
             - '# Kill Flask app after test'
             - kill $APP_PID
+  - name: Test Report
+    dependencies:
+      - Setup
+    task:
+      jobs:
+        - name: Make Report
+          commands:
+            - cd 5-test-reports
+            - pip install -r requirements.txt
+            - pytest --junitxml=report.xml
+            - '[[ -f report.xml ]] && test-results publish report.xml'
+after_pipeline:
+  task:
+    jobs:
+      - name: Pipeline Report
+        commands:
+          - test-results gen-pipeline-report
