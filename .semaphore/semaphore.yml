@@ -1,0 +1,134 @@
+version: v1.0
+name: "\U0001F3AF Simple CI Pipeline"
+agent:
+  machine:
+    type: f1-standard-2
+    os_image: ubuntu2404
+fail_fast:
+  stop:
+    when: branch != 'main'
+auto_cancel:
+  running:
+    when: branch != 'main'
+  queued:
+    when: branch = 'main'
+global_job_config:
+  prologue:
+    commands:
+      - sem-version python 3.12
+      - checkout
+      - mkdir -p .pip_cache
+blocks:
+  - name: Setup
+    dependencies: []
+    task:
+      jobs:
+        - name: Install Python Packages
+          commands:
+            - echo "Installing dependencies...."
+            - pip install pytest requests flask coverage locust flask-limiter
+            - cache store
+  - name: Unit Tests
+    dependencies:
+      - Setup
+    task:
+      jobs:
+        - name: Run Tests
+          commands:
+            - cache restore
+            - 'cd 1-tdd '
+            - 'python -m pytest test_factorial.py -v '
+            - python -m pytest test_fibonacci.py -v
+            - cd ..
+            - 'cd 2-unit-testing '
+            - python -m pytest test_math_sum.py -v
+  - name: Integration Tests
+    dependencies:
+      - Unit Tests
+    task:
+      jobs:
+        - name: Run Tests
+          commands:
+            - cache restore
+            - 'cd 3-integration-testing '
+            - 'python -m pytest test_integration.py -v '
+            - cd ..
+            - 'cd 6-mocking '
+            - 'python -m pytest test_weather_service.py -v '
+            - cd ..
+            - 'cd 10-database-testing '
+            - python -m pytest test_database.py -v
+  - name: E2E Tests
+    dependencies:
+      - Integration Tests
+    task:
+      jobs:
+        - name: Run Tests
+          commands:
+            - cache restore
+            - 'cd 4-e2e '
+            - pip install -r requirements.txt
+            - pip install flask_limiter
+            - nohup python app.py &
+            - '# wait until app is ready - running state'
+            - 'until curl -s http://127.0.0.1:5000/health; do sleep 1; done'
+            - python -m pytest test_e2e.py -v
+  - name: Coverage
+    dependencies:
+      - Setup
+    task:
+      jobs:
+        - name: Check coverage
+          commands:
+            - cd 7-test-coverage
+            - pip install coverage
+            - 'coverage run -m pytest test_calculator.py -v '
+            - coverage report -m
+  - name: Performance Tests
+    dependencies:
+      - E2E Tests
+      - Setup
+    task:
+      jobs:
+        - name: Run Tests
+          commands:
+            - 'set -e  # fail fast if anything breaks'
+            - '#export DISABLE_RATE_LIMIT=1'
+            - '# Install dependencies'
+            - cd 4-e2e
+            - pip install -r requirements.txt
+            - pip install flask_limiter
+            - cd ..
+            - cd 8-performance-testing
+            - pip install locust
+            - '# Start Flask app in background'
+            - 'python -c "import sys; sys.path.insert(0, ''../4-e2e''); from app import app; app.run()" > flask.log 2>&1 &'
+            - APP_PID=$!
+            - '# wait until app is ready - running state'
+            - 'until curl -s http://127.0.0.1:5000/health; do sleep 1; done'
+            - '# Run Locust (this will block until finished)'
+            - 'locust -f locustfile.py --host=http://127.0.0.1:5000 --headless -u 10 -r 2 --run-time 30s'
+            - '# Kill Flask app after test'
+            - kill $APP_PID
+  - name: Security Tests
+    dependencies:
+      - Performance Tests
+      - Setup
+    task:
+      jobs:
+        - name: Run Tests
+          commands:
+            - '# Install dependencies'
+            - cd 4-e2e
+            - pip install -r requirements.txt
+            - pip install flask_limiter
+            - cd ..
+            - 'cd 9-security-testing '
+            - '# Start Flask app in background'
+            - 'python -c "import sys; sys.path.insert(0, ''../4-e2e''); from app import app; app.run()" > flask.log 2>&1 &'
+            - APP_PID=$!
+            - '# wait until app is ready - running state'
+            - 'until curl -s http://127.0.0.1:5000/health; do sleep 1; done'
+            - python -m pytest test_security.py -v
+            - '# Kill Flask app after test'
+            - kill $APP_PID
