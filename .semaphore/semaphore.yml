@@ -66,7 +66,7 @@ blocks:
         - name: Run Tests
           commands:
             - cache restore
-            - cd 4-e2e
+            - 'cd 4-e2e '
             - pip install -r requirements.txt
             - pip install flask_limiter
             - nohup python app.py &
